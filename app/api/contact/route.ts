@@ -9,8 +9,18 @@ type ContactPayload = {
   message?: string;
 };
 
-const sanitize = (value: string) =>
+const sanitizeLine = (value: string) =>
   value.replace(/\r/g, "").replace(/\n/g, " ").trim();
+
+const sanitizeMessage = (value: string) => value.replace(/\r/g, "").trim();
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 export async function POST(request: Request) {
   let payload: ContactPayload | null = null;
@@ -23,9 +33,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const name = sanitize(payload?.name ?? "");
-  const email = sanitize(payload?.email ?? "");
-  const message = sanitize(payload?.message ?? "");
+  const name = sanitizeLine(payload?.name ?? "");
+  const email = sanitizeLine(payload?.email ?? "");
+  const message = sanitizeMessage(payload?.message ?? "");
 
   if (!name || !email || !message) {
     return NextResponse.json(
@@ -43,7 +53,8 @@ export async function POST(request: Request) {
   }
 
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const to = "info@corviap.com";
+  const from = process.env.RESEND_FROM?.trim();
+  const to = process.env.RESEND_TO?.trim() || "info@corviap.com";
 
   if (!apiKey) {
     return NextResponse.json(
@@ -52,16 +63,23 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!from) {
+    return NextResponse.json(
+      { ok: false, error: "Sender email is not configured." },
+      { status: 500 }
+    );
+  }
+
   const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
-    from: `${name} <${email}>`,
+    from,
     to,
-    replyTo: `${name} <${email}>`,
+    replyTo: email,
     subject: `Contact Form - ${name} (${email})`,
     text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
-    html: `<p><strong>Name:</strong> ${name}</p>
-<p><strong>Email:</strong> ${email}</p>
-<p>${message.replace(/\n/g, "<br />")}</p>`,
+    html: `<p><strong>Name:</strong> ${escapeHtml(name)}</p>
+<p><strong>Email:</strong> ${escapeHtml(email)}</p>
+<p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>`,
   });
 
   if (error) {
@@ -72,8 +90,9 @@ export async function POST(request: Request) {
       name: error.name,
       message,
       statusCode,
-      from: email,
+      from,
       to,
+      replyTo: email,
     });
 
     return NextResponse.json(
