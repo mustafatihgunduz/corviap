@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   title: "Corviap Group | Strategic Systems & Digital Growth",
   description:
     "Corviap Group, kurumlarin karmasayi sisteme donusturmesini saglayan danismanlik ve teknoloji grubudur.",
+  icons: {
+    icon: "/sirket_logo.png",
+    shortcut: "/sirket_logo.png",
+    apple: "/sirket_logo.png",
+  },
 };
 
 export default function RootLayout({
